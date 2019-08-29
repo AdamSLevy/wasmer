@@ -24,6 +24,7 @@ test-module-exports
 test-module-import-instantiate
 test-module-imports
 test-module-serialize
+test-module-metering-serialize
 test-tables
 test-validate
 test-wasi-import-object
