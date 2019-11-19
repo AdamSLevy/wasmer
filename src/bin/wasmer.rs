@@ -36,8 +36,6 @@ use wasmer_runtime_core::{
     debug,
     loader::{Instance as LoadedInstance, LocalLoader},
 };
-#[cfg(feature = "backend-singlepass")]
-use wasmer_singlepass_backend::SinglePassCompiler;
 #[cfg(feature = "wasi")]
 use wasmer_wasi;
 
@@ -81,7 +79,7 @@ enum CLIOptions {
     SelfUpdate,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Clone)]
 struct PrestandardFeatures {
     /// Enable support for the SIMD proposal.
     #[structopt(long = "enable-simd")]
@@ -136,7 +134,7 @@ pub struct LLVMCLIOptions {
     obj_file: Option<PathBuf>,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Clone)]
 struct Run {
     /// Disable the cache
     #[structopt(long = "disable-cache")]
@@ -206,6 +204,14 @@ struct Run {
     /// State tracking is necessary for tier switching and backtracing.
     #[structopt(long = "track-state")]
     track_state: bool,
+
+    // Enable the CallTrace middleware.
+    #[structopt(long = "call-trace")]
+    call_trace: bool,
+
+    // Enable the BlockTrace middleware.
+    #[structopt(long = "block-trace")]
+    block_trace: bool,
 
     /// The command name is a string that will override the first argument passed
     /// to the wasm program. This is used in wapm to provide nicer output in
@@ -421,7 +427,7 @@ fn execute_wasm(options: &Run) -> Result<(), String> {
             .map_err(|e| format!("Can't convert from wast to wasm: {:?}", e))?;
     }
 
-    let compiler: Box<dyn Compiler> = match get_compiler_by_backend(options.backend) {
+    let compiler: Box<dyn Compiler> = match get_compiler_by_backend(options.backend, options) {
         Some(x) => x,
         None => return Err("the requested backend is not enabled".into()),
     };
@@ -645,12 +651,21 @@ fn execute_wasm(options: &Run) -> Result<(), String> {
                         &import_object,
                         start_raw,
                         &mut instance,
+                        options.backend,
                         options
                             .optimized_backends
                             .iter()
-                            .map(|&backend| -> Box<dyn Fn() -> Box<dyn Compiler> + Send> {
-                                Box::new(move || get_compiler_by_backend(backend).unwrap())
-                            })
+                            .map(
+                                |&backend| -> (Backend, Box<dyn Fn() -> Box<dyn Compiler> + Send>) {
+                                    let options = options.clone();
+                                    (
+                                        backend,
+                                        Box::new(move || {
+                                            get_compiler_by_backend(backend, &options).unwrap()
+                                        }),
+                                    )
+                                },
+                            )
                             .collect(),
                         interactive_shell,
                     )?
@@ -660,7 +675,23 @@ fn execute_wasm(options: &Run) -> Result<(), String> {
             #[cfg(not(feature = "managed"))]
             {
                 use wasmer_runtime::error::RuntimeError;
+                use wasmer_runtime_core::{
+                    fault::{pop_code_version, push_code_version},
+                    state::CodeVersion,
+                };
+
+                push_code_version(CodeVersion {
+                    baseline: true,
+                    msm: instance
+                        .module
+                        .runnable_module
+                        .get_module_state_map()
+                        .unwrap(),
+                    base: instance.module.runnable_module.get_code().unwrap().as_ptr() as usize,
+                    backend: options.backend,
+                });
                 let result = start.call();
+                pop_code_version().unwrap();
 
                 if let Err(ref err) = result {
                     match err {
@@ -700,11 +731,12 @@ fn execute_wasm(options: &Run) -> Result<(), String> {
                 Some(fun) => fun,
                 _ => "main",
             };
-            instance
+            let result = instance
                 .dyn_func(&invoke_fn)
                 .map_err(|e| format!("{:?}", e))?
                 .call(&args)
                 .map_err(|e| format!("{:?}", e))?;
+            println!("main() returned: {:?}", result);
         }
     }
 
@@ -833,10 +865,32 @@ fn validate(validate: Validate) {
     }
 }
 
-fn get_compiler_by_backend(backend: Backend) -> Option<Box<dyn Compiler>> {
+fn get_compiler_by_backend(backend: Backend, _opts: &Run) -> Option<Box<dyn Compiler>> {
     Some(match backend {
         #[cfg(feature = "backend-singlepass")]
-        Backend::Singlepass => Box::new(SinglePassCompiler::new()),
+        Backend::Singlepass => {
+            use wasmer_runtime_core::codegen::MiddlewareChain;
+            use wasmer_runtime_core::codegen::StreamingCompiler;
+            use wasmer_singlepass_backend::ModuleCodeGenerator as SinglePassMCG;
+
+            let opts = _opts.clone();
+            let middlewares_gen = move || {
+                let mut middlewares = MiddlewareChain::new();
+                if opts.call_trace {
+                    use wasmer_middleware_common::call_trace::CallTrace;
+                    middlewares.push(CallTrace::new());
+                }
+                if opts.block_trace {
+                    use wasmer_middleware_common::block_trace::BlockTrace;
+                    middlewares.push(BlockTrace::new());
+                }
+                middlewares
+            };
+
+            let c: StreamingCompiler<SinglePassMCG, _, _, _, _> =
+                StreamingCompiler::new(middlewares_gen);
+            Box::new(c)
+        }
         #[cfg(not(feature = "backend-singlepass"))]
         Backend::Singlepass => return None,
         Backend::Cranelift => Box::new(CraneliftCompiler::new()),

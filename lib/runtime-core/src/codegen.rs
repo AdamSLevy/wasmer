@@ -5,6 +5,7 @@ use crate::{
     backend::{Backend, CacheGen, Compiler, CompilerConfig, Features, Token},
     cache::{Artifact, Error as CacheError},
     error::{CompileError, CompileResult},
+    fault::FaultInfo,
     module::{ModuleInfo, ModuleInner},
     structures::Map,
     types::{FuncIndex, FuncSig, SigIndex},
@@ -66,7 +67,7 @@ impl fmt::Debug for InternalEvent {
 /// Information for a breakpoint
 pub struct BreakpointInfo<'a> {
     /// Fault.
-    pub fault: Option<&'a dyn Any>,
+    pub fault: Option<&'a FaultInfo>,
 }
 
 /// A trait that represents the functions needed to be implemented to generate code for a module.
