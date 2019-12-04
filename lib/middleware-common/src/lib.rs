@@ -13,4 +13,5 @@
 #[cfg(unix)]
 pub mod block_trace;
 pub mod call_trace;
+pub mod event_trace;
 pub mod metering;
