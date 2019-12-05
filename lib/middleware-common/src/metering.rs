@@ -132,6 +132,9 @@ impl FunctionMiddleware for Metering {
         match ev {
             Event::Internal(ref iev) => match iev {
                 FunctionBegin(_) => {
+                    self.injections.clear();
+                    self.current_block_injections.clear();
+                    self.current_block_cost = 0;
                     sink.push(ev);
                     self.begin();
                     return Ok(());

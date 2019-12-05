@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
 libc = "0.2.60"
+simple-error = "0.2"
 
 [dependencies.wasmer-runtime]
 default-features = false
