@@ -99,7 +99,10 @@ pub mod global;
 pub mod import;
 pub mod instance;
 pub mod memory;
+
+#[cfg(feature = "metering")]
 pub mod metering;
+
 pub mod module;
 pub mod table;
 // `not(target_family = "windows")` is simpler than `unix`.  See build.rs

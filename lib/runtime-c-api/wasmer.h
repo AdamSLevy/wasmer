@@ -1,4 +1,3 @@
-
 #if !defined(WASMER_H_MACROS)
 #define WASMER_H_MACROS
 
@@ -13,6 +12,8 @@
 #define ARCH_X86_64
 #endif
 #endif
+
+#define FEATURE_METERING
 
 #endif // WASMER_H_MACROS
 
@@ -247,6 +248,7 @@ wasmer_result_t wasmer_compile(wasmer_module_t **module,
                                uint8_t *wasm_bytes,
                                uint32_t wasm_bytes_len);
 
+#if defined(FEATURE_METERING)
 /**
  * Creates a new Module with gas limit from the given wasm bytes.
  *
@@ -257,8 +259,8 @@ wasmer_result_t wasmer_compile(wasmer_module_t **module,
  */
 wasmer_result_t wasmer_compile_with_gas_metering(wasmer_module_t **module,
                                                  uint8_t *wasm_bytes,
-                                                 uint32_t wasm_bytes_len,
-                                                 uint64_t gas_limit);
+                                                 uint32_t wasm_bytes_len);
+#endif
 
 /**
  * Gets export descriptor kind
@@ -621,12 +623,28 @@ void wasmer_instance_context_data_set(wasmer_instance_t *instance, void *data_pt
  */
 const wasmer_instance_context_t *wasmer_instance_context_get(wasmer_instance_t *instance);
 
+#if defined(FEATURE_METERING)
+uint64_t wasmer_instance_context_get_execution_limit(wasmer_instance_context_t *ctx);
+#endif
+
+#if defined(FEATURE_METERING)
+uint64_t wasmer_instance_context_get_points_used(wasmer_instance_context_t *ctx);
+#endif
+
 /**
  * Gets the memory within the context at the index `memory_idx`.
  * The index is always 0 until multiple memories are supported.
  */
 const wasmer_memory_t *wasmer_instance_context_memory(const wasmer_instance_context_t *ctx,
                                                       uint32_t _memory_idx);
+
+#if defined(FEATURE_METERING)
+void wasmer_instance_context_set_execution_limit(wasmer_instance_context_t *ctx, uint64_t limit);
+#endif
+
+#if defined(FEATURE_METERING)
+void wasmer_instance_context_set_points_used(wasmer_instance_context_t *ctx, uint64_t new_gas);
+#endif
 
 /**
  * Frees memory for the given Instance
@@ -640,9 +658,21 @@ void wasmer_instance_destroy(wasmer_instance_t *instance);
  */
 void wasmer_instance_exports(wasmer_instance_t *instance, wasmer_exports_t **exports);
 
-uint64_t wasmer_instance_get_points_used(wasmer_instance_t *instance);
+#if defined(FEATURE_METERING)
+uint64_t wasmer_instance_get_execution_limit(wasmer_instance_t *instance);
+#endif
 
+#if defined(FEATURE_METERING)
+uint64_t wasmer_instance_get_points_used(wasmer_instance_t *instance);
+#endif
+
+#if defined(FEATURE_METERING)
+void wasmer_instance_set_execution_limit(wasmer_instance_t *instance, uint64_t limit);
+#endif
+
+#if defined(FEATURE_METERING)
 void wasmer_instance_set_points_used(wasmer_instance_t *instance, uint64_t new_gas);
+#endif
 
 /**
  * Creates a new Instance from the given wasm bytes and imports.

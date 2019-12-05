@@ -15,8 +15,7 @@ int main()
     fclose(file);
 
     wasmer_module_t *module_one = NULL;
-    unsigned long long gas_limit = 100;
-    wasmer_result_t compile_result = wasmer_compile_with_gas_metering(&module_one, bytes, len, gas_limit);
+    wasmer_result_t compile_result = wasmer_compile_with_gas_metering(&module_one, bytes, len);
     printf("Compile result: %d\n", compile_result);
     assert(compile_result == WASMER_OK);
 
@@ -44,6 +43,7 @@ int main()
     wasmer_value_t result_one;
     wasmer_value_t results[] = {result_one};
 
+    wasmer_instance_set_execution_limit(instance_one, 54);
     wasmer_result_t call_result = wasmer_instance_call(instance_one, "sum", params, 2, results, 1);
     printf("Call result:  %d\n", call_result);
     printf("Result: %d\n", results[0].value.I32);
@@ -52,9 +52,21 @@ int main()
 
 	// ensure we got charged some gas
     assert(wasmer_instance_get_points_used(instance_one) == 54);
-    // TODO: try again an ensure limit enforced... need another function
 
-	// end first run
+    // lower gas limit
+    wasmer_instance_set_execution_limit(instance_one, 0);
+
+    // attempt call again
+    call_result = wasmer_instance_call(instance_one, "sum", params, 2, results, 1);
+    printf("Call result:  %d\n", call_result);
+    printf("Result: %d\n", results[0].value.I32);
+    assert(results[0].value.I32 == 15);
+    assert(call_result != WASMER_OK);
+
+    int error_len = wasmer_last_error_length();
+    char *error_str = malloc(error_len);
+    wasmer_last_error_message(error_str, error_len);
+    printf("Error str: `%s`\n", error_str);
 
     wasmer_serialized_module_t *serialized_module = NULL;
     wasmer_result_t serialize_result = wasmer_module_serialize(&serialized_module, module_one);
@@ -90,6 +102,7 @@ int main()
     assert(wasmer_instance_get_points_used(instance_one) > 50);
     assert(wasmer_instance_get_points_used(instance_two) == 20);
 
+    wasmer_instance_set_execution_limit(instance_two, 100);
     call_result = wasmer_instance_call(instance_two, "sum", params, 2, results, 1);
     printf("Call result:  %d\n", call_result);
     printf("Result: %d\n", results[0].value.I32);

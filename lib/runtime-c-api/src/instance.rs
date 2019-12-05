@@ -13,6 +13,7 @@ use libc::{c_char, c_int, c_void};
 use std::{collections::HashMap, ffi::CStr, slice};
 use wasmer_runtime::{Ctx, Global, Instance, Memory, Module, Table, Value};
 use wasmer_runtime_core::{
+    error::{CallError, RuntimeError},
     export::Export,
     import::{ImportObject, Namespace},
 };
@@ -224,7 +225,16 @@ pub unsafe extern "C" fn wasmer_instance_call(
             wasmer_result_t::WASMER_OK
         }
         Err(err) => {
-            update_last_error(err);
+            match err {
+                CallError::Runtime(RuntimeError::Error { data }) => {
+                    use wasmer_middleware_common::metering::ExecutionLimitExceededError;
+                    if data.downcast_ref::<ExecutionLimitExceededError>().is_some() {
+                        use simple_error::SimpleError;
+                        update_last_error(SimpleError::new("Execution limit exceeded."));
+                    }
+                }
+                _ => update_last_error(err),
+            }
             wasmer_result_t::WASMER_ERROR
         }
     }

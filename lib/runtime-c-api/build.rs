@@ -12,8 +12,8 @@ fn main() {
     let mut out_wasmer_header_file = PathBuf::from(&out_dir);
     out_wasmer_header_file.push("wasmer");
 
-    const WASMER_PRE_HEADER: &str = r#"
-#if !defined(WASMER_H_MACROS)
+    let wasmer_pre_header = String::from(
+        r#"#if !defined(WASMER_H_MACROS)
 #define WASMER_H_MACROS
 
 #if defined(MSVC)
@@ -27,18 +27,30 @@ fn main() {
 #define ARCH_X86_64
 #endif
 #endif
+"#,
+    );
 
+    #[cfg(feature = "metering")]
+    let wasmer_pre_header = wasmer_pre_header
+        + r#"
+#define FEATURE_METERING
+"#;
+
+    let wasmer_pre_header = wasmer_pre_header
+        + r#"
 #endif // WASMER_H_MACROS
 "#;
+
     // Generate the C bindings in the `OUT_DIR`.
     out_wasmer_header_file.set_extension("h");
     Builder::new()
         .with_crate(crate_dir.clone())
         .with_language(Language::C)
         .with_include_guard("WASMER_H")
-        .with_header(WASMER_PRE_HEADER)
+        .with_header(&wasmer_pre_header)
         .with_define("target_family", "windows", "_WIN32")
         .with_define("target_arch", "x86_64", "ARCH_X86_64")
+        .with_define("feature", "metering", "FEATURE_METERING")
         .generate()
         .expect("Unable to generate C bindings")
         .write_to_file(out_wasmer_header_file.as_path());
@@ -49,9 +61,10 @@ fn main() {
         .with_crate(crate_dir)
         .with_language(Language::Cxx)
         .with_include_guard("WASMER_H")
-        .with_header(WASMER_PRE_HEADER)
+        .with_header(&wasmer_pre_header)
         .with_define("target_family", "windows", "_WIN32")
         .with_define("target_arch", "x86_64", "ARCH_X86_64")
+        .with_define("feature", "metering", "FEATURE_METERING")
         .generate()
         .expect("Unable to generate C++ bindings")
         .write_to_file(out_wasmer_header_file.as_path());
