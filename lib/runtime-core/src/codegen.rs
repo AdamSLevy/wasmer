@@ -21,15 +21,17 @@ use std::sync::{Arc, RwLock};
 use wasmparser::{self, WasmDecoder};
 use wasmparser::{Operator, Type as WpType};
 
+use std::rc::Rc;
+
 /// A type that defines a function pointer, which is called when breakpoints occur.
 pub type BreakpointHandler =
-    Box<dyn Fn(BreakpointInfo) -> Result<(), Box<dyn Any + Send>> + Send + Sync + 'static>;
+    Rc<dyn Fn(BreakpointInfo) -> Result<(), Box<dyn Any + Send>> + Send + Sync + 'static>;
 
 /// Maps instruction pointers to their breakpoint handlers.
 pub type BreakpointMap = Arc<HashMap<usize, BreakpointHandler>>;
 
 /// An event generated during parsing of a wasm binary
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Event<'a, 'b> {
     /// An internal event created by the parser used to provide hooks during code generation.
     Internal(InternalEvent),
@@ -40,6 +42,7 @@ pub enum Event<'a, 'b> {
 }
 
 /// Kinds of `InternalEvent`s created during parsing.
+#[derive(Clone)]
 pub enum InternalEvent {
     /// A function parse is about to begin.
     FunctionBegin(u32),
