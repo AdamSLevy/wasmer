@@ -51,21 +51,28 @@ impl Metering {
     }
 
     fn begin<'a, 'b: 'a>(&mut self) {
+        //println!("!begin");
         self.set_costs();
         self.current_block_injections
             .push(Injection { add: 0, check: 0 });
     }
     fn end<'a, 'b: 'a>(&mut self) {
+        //println!("!end");
         self.set_costs();
+        //println!("!new injections {:?}", self.current_block_injections);
         self.injections.append(&mut self.current_block_injections);
     }
 
     fn inject_metering<'a, 'b: 'a>(&self, sink: &mut EventSink<'a, 'b>) {
+        println!("!injecting metering...");
+        //println!("!injections.len(): {}", self.injections.len());
+        //println!("!injections: {:?}", self.injections);
         let prev: Vec<Event> = sink.buffer.drain(..).collect();
         let mut inj_idx: usize = 1;
         for ev in prev {
             match ev {
                 Event::Internal(FunctionBegin(_)) => {
+                    println!("{:?}", ev);
                     sink.push(ev);
                     self.injections[0].inject(sink);
                 }
@@ -77,15 +84,18 @@ impl Metering {
                     | Operator::Loop { .. }
                     | Operator::Call { .. }
                     | Operator::CallIndirect { .. } => {
+                        println!("{:?}", ev);
                         sink.push(ev);
                         self.injections[inj_idx].inject(sink);
                         inj_idx += 1;
                     }
                     _ => {
+                        println!("{:?}", ev);
                         sink.push(ev);
                     }
                 },
                 _ => {
+                    println!("{:?}", ev);
                     sink.push(ev);
                 }
             }
@@ -132,6 +142,7 @@ impl FunctionMiddleware for Metering {
         match ev {
             Event::Internal(ref iev) => match iev {
                 FunctionBegin(_) => {
+                    //println!("{:?}", ev);
                     self.injections.clear();
                     self.current_block_injections.clear();
                     self.current_block_cost = 0;
@@ -142,16 +153,19 @@ impl FunctionMiddleware for Metering {
                 FunctionEnd => {
                     self.end();
                     self.inject_metering(sink);
+                    //println!("{:?}", ev);
                     sink.push(ev);
                     return Ok(());
                 }
                 _ => {
                     self.increment_cost(&ev);
+                    //println!("{:?}", ev);
                     sink.push(ev);
                     return Ok(());
                 }
             },
             Event::Wasm(&ref op) | Event::WasmOwned(ref op) => {
+                //println!("{:?}", ev);
                 self.increment_cost(&ev);
                 match *op {
                     Operator::End
@@ -253,58 +267,77 @@ struct Injection {
 impl Injection {
     fn inject<'a, 'b: 'a>(&self, sink: &mut EventSink<'a, 'b>) {
         if self.add == 0 {
+            //println!("!skipping zero cost injection");
             return;
         }
+        println!("!{:?}", self);
         // PUSH USED
-        sink.push(Event::Internal(GetInternal(
-            INTERNAL_FIELD_USED.index() as _
-        )));
+        let ev = Event::Internal(GetInternal(INTERNAL_FIELD_USED.index() as _));
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         // PUSH COST (to next Injection)
-        sink.push(Event::WasmOwned(Operator::I64Const {
+        let ev = Event::WasmOwned(Operator::I64Const {
             value: self.add as i64,
-        }));
+        });
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         // USED + COST
-        sink.push(Event::WasmOwned(Operator::I64Add));
+        let ev = Event::WasmOwned(Operator::I64Add);
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         // SAVE USED
-        sink.push(Event::Internal(SetInternal(
-            INTERNAL_FIELD_USED.index() as _
-        )));
+        let ev = Event::Internal(SetInternal(INTERNAL_FIELD_USED.index() as _));
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         // PUSH USED
-        sink.push(Event::Internal(GetInternal(
-            INTERNAL_FIELD_USED.index() as _
-        )));
+        let ev = Event::Internal(GetInternal(INTERNAL_FIELD_USED.index() as _));
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         if self.check > 0 {
             // PUSH COST (to next branching op)
-            sink.push(Event::WasmOwned(Operator::I64Const {
+            let ev = Event::WasmOwned(Operator::I64Const {
                 value: self.check as i64,
-            }));
+            });
+            println!("!{:?}", ev);
+            sink.push(ev);
 
             // USED + COST
-            sink.push(Event::WasmOwned(Operator::I64Add));
+            let ev = Event::WasmOwned(Operator::I64Add);
+            println!("!{:?}", ev);
+            sink.push(ev);
         }
 
         // PUSH LIMIT
-        sink.push(Event::Internal(GetInternal(
-            INTERNAL_FIELD_LIMIT.index() as _
-        )));
+        let ev = Event::Internal(GetInternal(INTERNAL_FIELD_LIMIT.index() as _));
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         // IF USED > LIMIT
-        sink.push(Event::WasmOwned(Operator::I64GtU));
-        sink.push(Event::WasmOwned(Operator::If {
+        let ev = Event::WasmOwned(Operator::I64GtU);
+        println!("!{:?}", ev);
+        sink.push(ev);
+
+        let ev = Event::WasmOwned(Operator::If {
             ty: WpTypeOrFuncType::Type(WpType::EmptyBlockType),
-        }));
+        });
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         //          TRAP! EXECUTION LIMIT EXCEEDED
-        sink.push(Event::Internal(Breakpoint(Box::new(|_| {
+        let ev = Event::Internal(Breakpoint(Box::new(|_| {
             Err(Box::new(ExecutionLimitExceededError))
-        }))));
+        })));
+        println!("!{:?}", ev);
+        sink.push(ev);
 
         // ENDIF
-        sink.push(Event::WasmOwned(Operator::End));
+        let ev = Event::WasmOwned(Operator::End);
+        println!("!{:?}", ev);
+        sink.push(ev);
     }
 }
