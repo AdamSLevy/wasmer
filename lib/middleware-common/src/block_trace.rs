@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use wasmer_runtime_core::{
     codegen::{Event, EventSink, FunctionMiddleware, InternalEvent},
     module::ModuleInfo,
@@ -20,11 +21,11 @@ impl BlockTrace {
 
 impl FunctionMiddleware for BlockTrace {
     type Error = String;
-    fn feed_event<'a, 'b: 'a>(
+    fn feed_event<'a>(
         &mut self,
-        op: Event<'a, 'b>,
+        op: Event<'a>,
         _module_info: &ModuleInfo,
-        sink: &mut EventSink<'a, 'b>,
+        sink: &mut EventSink<'a>,
     ) -> Result<(), Self::Error> {
         match op {
             Event::Internal(InternalEvent::FunctionBegin(_)) => {
@@ -33,7 +34,7 @@ impl FunctionMiddleware for BlockTrace {
                 let func_idx = self.func_idx;
                 let evt_idx = self.evt_idx;
                 sink.push(op);
-                sink.push(Event::Internal(InternalEvent::Breakpoint(Box::new(
+                sink.push(Event::Internal(InternalEvent::Breakpoint(Rc::new(
                     move |info| {
                         eprintln!(
                             "[BlockTrace] ({}, {}) -> enter_func % {:?}",
@@ -52,7 +53,7 @@ impl FunctionMiddleware for BlockTrace {
                 let func_idx = self.func_idx;
                 let evt_idx = self.evt_idx;
                 sink.push(op);
-                sink.push(Event::Internal(InternalEvent::Breakpoint(Box::new(
+                sink.push(Event::Internal(InternalEvent::Breakpoint(Rc::new(
                     move |info| {
                         eprintln!(
                             "[BlockTrace] ({}, {}) -> leave_call % {:?}",
@@ -71,7 +72,7 @@ impl FunctionMiddleware for BlockTrace {
                 let func_idx = self.func_idx;
                 let evt_idx = self.evt_idx;
                 sink.push(op);
-                sink.push(Event::Internal(InternalEvent::Breakpoint(Box::new(
+                sink.push(Event::Internal(InternalEvent::Breakpoint(Rc::new(
                     move |info| {
                         eprintln!(
                             "[BlockTrace] ({}, {}) -> block % {:?}",
@@ -90,7 +91,7 @@ impl FunctionMiddleware for BlockTrace {
                 let func_idx = self.func_idx;
                 let evt_idx = self.evt_idx;
                 sink.push(op);
-                sink.push(Event::Internal(InternalEvent::Breakpoint(Box::new(
+                sink.push(Event::Internal(InternalEvent::Breakpoint(Rc::new(
                     move |info| {
                         eprintln!(
                             "[BlockTrace] ({}, {}) -> loop % {:?}",
@@ -109,7 +110,7 @@ impl FunctionMiddleware for BlockTrace {
                 let func_idx = self.func_idx;
                 let evt_idx = self.evt_idx;
                 sink.push(op);
-                sink.push(Event::Internal(InternalEvent::Breakpoint(Box::new(
+                sink.push(Event::Internal(InternalEvent::Breakpoint(Rc::new(
                     move |info| {
                         eprintln!(
                             "[BlockTrace] ({}, {}) -> if % {:?}",
@@ -128,7 +129,7 @@ impl FunctionMiddleware for BlockTrace {
                 let func_idx = self.func_idx;
                 let evt_idx = self.evt_idx;
                 sink.push(op);
-                sink.push(Event::Internal(InternalEvent::Breakpoint(Box::new(
+                sink.push(Event::Internal(InternalEvent::Breakpoint(Rc::new(
                     move |info| {
                         eprintln!(
                             "[BlockTrace] ({}, {}) -> else % {:?}",

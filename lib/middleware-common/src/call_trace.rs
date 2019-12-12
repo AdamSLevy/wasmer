@@ -1,6 +1,9 @@
-use std::sync::{
-    atomic::{AtomicU32, Ordering},
-    Arc,
+use std::{
+    rc::Rc,
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc,
+    },
 };
 use wasmer_runtime_core::{
     codegen::{Event, EventSink, FunctionMiddleware, InternalEvent},
@@ -21,17 +24,17 @@ impl CallTrace {
 
 impl FunctionMiddleware for CallTrace {
     type Error = String;
-    fn feed_event<'a, 'b: 'a>(
+    fn feed_event<'a>(
         &mut self,
-        op: Event<'a, 'b>,
+        op: Event<'a>,
         _module_info: &ModuleInfo,
-        sink: &mut EventSink<'a, 'b>,
+        sink: &mut EventSink<'a>,
     ) -> Result<(), Self::Error> {
         let counter = self.counter.clone();
 
         match op {
             Event::Internal(InternalEvent::FunctionBegin(id)) => sink.push(Event::Internal(
-                InternalEvent::Breakpoint(Box::new(move |_| {
+                InternalEvent::Breakpoint(Rc::new(move |_| {
                     let idx = counter.fetch_add(1, Ordering::SeqCst);
                     eprintln!("[{}] func ({})", idx, id);
                     Ok(())

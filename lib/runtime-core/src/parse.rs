@@ -275,7 +275,7 @@ pub fn read_module<
                                     .map_err(|x| LoadError::Codegen(x))?;
                             }
                             middlewares
-                                .run(Some(fcg), Event::Wasm(op), &info.read().unwrap())
+                                .run(Some(fcg), Event::Wasm(op.clone()), &info.read().unwrap())
                                 .map_err(|x| LoadError::Codegen(x))?;
                         }
                         ParserState::EndFunctionBody => break,
